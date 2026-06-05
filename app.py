@@ -1,188 +1,183 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import tensorflow as tf
 import plotly.express as px
-import os
 
-# ============================================
-# 🎯 PAGE SETUP
-# ============================================
+# =====================================================
+# PAGE CONFIG
+# =====================================================
+
 st.set_page_config(
-    page_title="AI Fraud Monitor",
-    page_icon="💳",
+    page_title="Fraud Intelligence Dashboard",
+    page_icon="🚨",
     layout="wide"
 )
 
-st.title("💳 Fraud Detection System")
-st.caption("Detect suspicious transactions using deep learning")
+# =====================================================
+# HEADER
+# =====================================================
 
-# ============================================
-# 📌 SIDEBAR INFO
-# ============================================
-st.sidebar.header("System Status")
+st.title("🚨 Fraud Detection Intelligence System")
+st.markdown("### AI-Based Transaction Risk Analysis (Demo Version)")
 
-st.sidebar.write("📁 Working Directory:")
-st.sidebar.code(os.getcwd())
+# =====================================================
+# FILE UPLOAD
+# =====================================================
 
-st.sidebar.write("📦 Files Available:")
-st.sidebar.write(os.listdir())
+uploaded_file = st.file_uploader(
+    "Upload creditcard.csv",
+    type=["csv"]
+)
 
-# ============================================
-# 🧠 MODEL LOADING
-# ============================================
-MODEL_FILE = "attention_model.keras"
+# =====================================================
+# MAIN APP
+# =====================================================
 
-@st.cache_resource
-def load_model():
-    if not os.path.exists(MODEL_FILE):
-        st.error("❌ Model file not found")
-        st.stop()
-    return tf.keras.models.load_model(MODEL_FILE, compile=False)
+if uploaded_file is not None:
 
-try:
-    model = load_model()
-    st.sidebar.success("✅ Model Ready")
-except Exception as e:
-    st.error(f"Model Error: {e}")
-    st.stop()
+    try:
+        df = pd.read_csv(uploaded_file)
 
-# ============================================
-# 📂 FILE INPUT
-# ============================================
-st.subheader("📂 Upload Transaction Dataset")
+        st.subheader("📊 Dataset Preview")
+        st.dataframe(df.head(), use_container_width=True)
 
-file = st.file_uploader("Upload CSV", type=["csv"])
+        st.write("Shape:", df.shape)
 
-# ============================================
-# 🚀 MAIN PIPELINE
-# ============================================
-if file:
+        # =====================================================
+        # BASIC CHECK
+        # =====================================================
 
-    df = pd.read_csv(file)
+        if "Class" not in df.columns:
+            st.warning("⚠️ 'Class' column not found (Fraud labels missing)")
 
-    st.subheader("📊 Preview")
-    st.dataframe(df.head(), use_container_width=True)
+        # =====================================================
+        # SORT DATA
+        # =====================================================
 
-    st.write("Shape:", df.shape)
+        if "Time" in df.columns:
+            df = df.sort_values("Time")
 
-    # ============================================
-    # 🔍 FEATURE SELECTION
-    # ============================================
-    num_df = df.select_dtypes(include=np.number)
+        # =====================================================
+        # FEATURE SELECTION
+        # =====================================================
 
-    if num_df.shape[1] == 0:
-        st.error("No numeric data found")
-        st.stop()
+        numeric_df = df.select_dtypes(include=[np.number])
 
-    st.subheader("🔢 Features Used")
-    st.write(list(num_df.columns))
-
-    # ============================================
-    # 📏 MODEL REQUIREMENTS
-    # ============================================
-    input_shape = model.input_shape
-    seq_len = input_shape[1]
-    feat_count = input_shape[2]
-
-    st.info(f"Model expects {feat_count} features & sequence length {seq_len}")
-
-    if num_df.shape[1] != feat_count:
-        st.error("Feature mismatch between model & dataset")
-        st.stop()
-
-    # ============================================
-    # 🔄 SEQUENCE BUILDING
-    # ============================================
-    data = num_df.values
-    sequences = []
-
-    for i in range(len(data) - seq_len):
-        sequences.append(data[i:i+seq_len])
-
-    X = np.array(sequences)
-
-    st.write("Generated Sequences:", X.shape)
-
-    if len(X) == 0:
-        st.error("Not enough data for sequence creation")
-        st.stop()
-
-    # ============================================
-    # 🔮 MODEL PREDICTION
-    # ============================================
-    with st.spinner("Analyzing transactions..."):
-        preds = model.predict(X, verbose=0).flatten()
-
-    # ============================================
-    # 📊 RESULTS CREATION
-    # ============================================
-    result_df = df.iloc[seq_len:].copy()
-    result_df["Fraud_Score"] = preds
-
-    # Risk labeling
-    def risk_label(x):
-        if x > 0.8:
-            return "🔴 High"
-        elif x > 0.5:
-            return "🟡 Medium"
+        if "Class" in numeric_df.columns:
+            features = numeric_df.drop("Class", axis=1)
         else:
-            return "🟢 Low"
+            features = numeric_df
 
-    result_df["Risk"] = result_df["Fraud_Score"].apply(risk_label)
+        # =====================================================
+        # SEQUENCE CREATION
+        # =====================================================
 
-    # ============================================
-    # 📌 METRICS
-    # ============================================
-    st.subheader("📈 Summary")
+        seq_len = 5
+        X = []
 
-    c1, c2, c3 = st.columns(3)
+        for i in range(len(features) - seq_len):
+            X.append(features.iloc[i:i+seq_len].values)
 
-    c1.metric("Total Records", len(result_df))
-    c2.metric("High Risk", (result_df["Risk"] == "🔴 High").sum())
-    c3.metric("Avg Score", round(result_df["Fraud_Score"].mean(), 4))
+        X = np.array(X)
 
-    # ============================================
-    # 🚨 HIGH RISK DATA
-    # ============================================
-    st.subheader("🚨 Suspicious Transactions")
+        st.write("Generated Sequences:", X.shape)
 
-    high_risk = result_df[result_df["Risk"] == "🔴 High"]
+        if len(X) == 0:
+            st.error("Not enough data to create sequences")
+            st.stop()
 
-    st.dataframe(high_risk, use_container_width=True)
+        # =====================================================
+        # 🚀 DEMO PREDICTIONS (NO MODEL)
+        # =====================================================
 
-    # ============================================
-    # 📉 TREND GRAPH
-    # ============================================
-    st.subheader("📉 Fraud Score Trend")
+        # Simulated fraud probability
+        predictions = np.random.rand(len(X))
 
-    fig1 = px.line(result_df, y="Fraud_Score")
-    st.plotly_chart(fig1, use_container_width=True)
+        # =====================================================
+        # RESULTS
+        # =====================================================
 
-    # ============================================
-    # 🥧 DISTRIBUTION
-    # ============================================
-    st.subheader("🥧 Risk Breakdown")
+        results = df.iloc[seq_len:].copy()
+        results["Fraud_Probability"] = predictions
 
-    dist = result_df["Risk"].value_counts().reset_index()
-    dist.columns = ["Risk", "Count"]
+        def classify(p):
+            if p >= 0.8:
+                return "High Risk"
+            elif p >= 0.5:
+                return "Medium Risk"
+            else:
+                return "Low Risk"
 
-    fig2 = px.pie(dist, names="Risk", values="Count")
-    st.plotly_chart(fig2, use_container_width=True)
+        results["Risk_Level"] = results["Fraud_Probability"].apply(classify)
 
-    # ============================================
-    # 📥 DOWNLOAD
-    # ============================================
-    st.subheader("⬇️ Export Results")
+        # =====================================================
+        # METRICS
+        # =====================================================
 
-    csv = result_df.to_csv(index=False).encode("utf-8")
+        st.subheader("📈 Fraud Summary")
 
-    st.download_button(
-        "Download CSV",
-        csv,
-        "fraud_results.csv",
-        "text/csv"
-    )
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("Total Transactions", len(results))
+
+        col2.metric(
+            "High Risk",
+            len(results[results["Risk_Level"] == "High Risk"])
+        )
+
+        col3.metric(
+            "Avg Fraud Score",
+            round(results["Fraud_Probability"].mean(), 4)
+        )
+
+        # =====================================================
+        # HIGH RISK TABLE
+        # =====================================================
+
+        st.subheader("🚨 High Risk Transactions")
+
+        high_risk = results[results["Risk_Level"] == "High Risk"]
+
+        st.dataframe(high_risk, use_container_width=True)
+
+        # =====================================================
+        # TREND GRAPH
+        # =====================================================
+
+        st.subheader("📊 Fraud Probability Trend")
+
+        fig = px.line(results, y="Fraud_Probability")
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # =====================================================
+        # PIE CHART
+        # =====================================================
+
+        st.subheader("📌 Risk Distribution")
+
+        pie = results["Risk_Level"].value_counts().reset_index()
+        pie.columns = ["Risk", "Count"]
+
+        fig2 = px.pie(pie, names="Risk", values="Count")
+
+        st.plotly_chart(fig2, use_container_width=True)
+
+        # =====================================================
+        # DOWNLOAD
+        # =====================================================
+
+        csv = results.to_csv(index=False).encode("utf-8")
+
+        st.download_button(
+            "📥 Download Results",
+            csv,
+            "fraud_predictions.csv",
+            "text/csv"
+        )
+
+    except Exception as e:
+        st.error(f"Error: {e}")
 
 else:
-    st.info("📌 Upload a CSV file to begin analysis")
+    st.info("👆 Upload a CSV file to start analysis")
