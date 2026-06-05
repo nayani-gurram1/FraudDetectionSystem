@@ -44,7 +44,6 @@ def load_model():
         compile=False   # 🔥 IMPORTANT FIX
     )
 
-model = load_model()
 
 # =========================
 # ✅ File Upload
