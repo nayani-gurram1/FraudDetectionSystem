@@ -38,7 +38,10 @@ class PositionalEncodingLayer(tf.keras.layers.Layer):
 def load_model():
     return tf.keras.models.load_model(
         "fraud_model.keras",
-        custom_objects={"PositionalEncodingLayer": PositionalEncodingLayer}
+        custom_objects={
+            "PositionalEncodingLayer": PositionalEncodingLayer
+        },
+        compile=False   # 🔥 IMPORTANT FIX
     )
 
 model = load_model()
