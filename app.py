@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 st.title("💳 Fraud Detection Intelligence System")
 
 # =========================
-# ✅ Custom Layer (IMPORTANT FIX)
+# ✅ Custom Layer
 # =========================
 class PositionalEncodingLayer(tf.keras.layers.Layer):
     def __init__(self, seq_len, d_model, **kwargs):
@@ -38,11 +38,11 @@ class PositionalEncodingLayer(tf.keras.layers.Layer):
 def load_model():
     return tf.keras.models.load_model(
         "fraud_model.keras",
-        custom_objects={
-            "PositionalEncodingLayer": PositionalEncodingLayer
-        },
-        compile=False   # 🔥 IMPORTANT FIX
+        custom_objects={"PositionalEncodingLayer": PositionalEncodingLayer},
+        compile=False
     )
+
+model = load_model()   # 🔥 IMPORTANT FIX
 
 
 # =========================
@@ -57,11 +57,19 @@ if file:
     st.write(df.head())
 
     # =========================
-    # ⚠️ Reduce size for speed
+    # ✅ Column Check
+    # =========================
+    if "Class" not in df.columns:
+        st.error("❌ Dataset must contain 'Class' column")
+        st.stop()
+
+    # =========================
+    # ⚠️ Reduce size
     # =========================
     df = df.head(5000)
 
-    df = df.sort_values("Time")
+    if "Time" in df.columns:
+        df = df.sort_values("Time")
 
     # =========================
     # 🔄 Create Sequences
@@ -70,11 +78,22 @@ if file:
     X_seq = []
 
     for i in range(len(df) - seq_len):
-        X_seq.append(df.iloc[i:i+seq_len].drop("Class", axis=1).values)
+        X_seq.append(
+            df.iloc[i:i+seq_len]
+            .drop("Class", axis=1)
+            .values
+        )
 
     X_seq = np.array(X_seq)
 
-    st.write("Total Sequences:", X_seq.shape[0])
+    st.write("Shape of sequences:", X_seq.shape)
+
+    # =========================
+    # ❌ Empty Data Check
+    # =========================
+    if len(X_seq) == 0:
+        st.error("❌ Not enough data to create sequences")
+        st.stop()
 
     # =========================
     # 🔮 Prediction
