@@ -4,11 +4,16 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+from keras.saving import register_keras_serializable
+
+st.set_page_config(page_title="Fraud Detection System", layout="wide")
+
 st.title("💳 Fraud Detection Intelligence System")
 
-# =========================
-# ✅ Custom Layer
-# =========================
+# ==================================================
+# ✅ REGISTER CUSTOM LAYER (CRITICAL FIX)
+# ==================================================
+@register_keras_serializable()
 class PositionalEncodingLayer(tf.keras.layers.Layer):
     def __init__(self, seq_len, d_model, **kwargs):
         super().__init__(**kwargs)
@@ -31,49 +36,49 @@ class PositionalEncodingLayer(tf.keras.layers.Layer):
         return x + self.pos_encoding
 
 
-# =========================
-# ✅ Load Model
-# =========================
+# ==================================================
+# ✅ LOAD MODEL (FIXED)
+# ==================================================
 @st.cache_resource
 def load_model():
     return tf.keras.models.load_model(
-        "fraud_model.keras",
+        "fraud_model.h5",   # 🔥 USE .h5 FORMAT
         custom_objects={"PositionalEncodingLayer": PositionalEncodingLayer},
         compile=False
     )
 
-model = load_model()   # 🔥 IMPORTANT FIX
+model = load_model()
 
 
-# =========================
-# ✅ File Upload
-# =========================
-file = st.file_uploader("Upload creditcard.csv")
+# ==================================================
+# ✅ FILE UPLOAD
+# ==================================================
+file = st.file_uploader("📂 Upload creditcard.csv", type=["csv"])
 
 if file:
+
     df = pd.read_csv(file)
 
-    st.subheader("📊 Uploaded Data")
+    st.subheader("📊 Dataset Preview")
     st.write(df.head())
 
-    # =========================
-    # ✅ Column Check
-    # =========================
+    # ==================================================
+    # ✅ VALIDATION
+    # ==================================================
     if "Class" not in df.columns:
         st.error("❌ Dataset must contain 'Class' column")
         st.stop()
 
-    # =========================
-    # ⚠️ Reduce size
-    # =========================
+    # Reduce size (for Streamlit speed)
     df = df.head(5000)
 
+    # Sort if Time exists
     if "Time" in df.columns:
         df = df.sort_values("Time")
 
-    # =========================
-    # 🔄 Create Sequences
-    # =========================
+    # ==================================================
+    # 🔄 SEQUENCE CREATION
+    # ==================================================
     seq_len = 5
     X_seq = []
 
@@ -86,45 +91,61 @@ if file:
 
     X_seq = np.array(X_seq)
 
-    st.write("Shape of sequences:", X_seq.shape)
+    st.write("📦 Sequence Shape:", X_seq.shape)
 
-    # =========================
-    # ❌ Empty Data Check
-    # =========================
+    # ==================================================
+    # ❌ SAFETY CHECK
+    # ==================================================
     if len(X_seq) == 0:
         st.error("❌ Not enough data to create sequences")
         st.stop()
 
-    # =========================
-    # 🔮 Prediction
-    # =========================
-    with st.spinner("Predicting..."):
+    # ==================================================
+    # 🔮 PREDICTION
+    # ==================================================
+    with st.spinner("🔄 Running Model..."):
         preds = model.predict(X_seq)
 
     st.subheader("⚠️ Fraud Predictions")
     st.write(preds[:10])
 
-    # =========================
-    # 🔥 High Risk Transactions
-    # =========================
+    # ==================================================
+    # 🔥 HIGH RISK DETECTION
+    # ==================================================
     threshold = 0.5
     high_risk = np.where(preds > threshold)[0]
 
     st.subheader("🔥 High Risk Transactions")
     st.write(high_risk[:10])
 
-    # =========================
-    # 🧠 Visualization
-    # =========================
-    st.subheader("🧠 Transaction Importance")
+    st.write(f"Total High Risk: {len(high_risk)}")
+
+    # ==================================================
+    # 📊 FRAUD DISTRIBUTION
+    # ==================================================
+    st.subheader("📊 Fraud Probability Distribution")
+
+    fig1, ax1 = plt.subplots()
+    ax1.hist(preds, bins=20)
+    ax1.set_title("Fraud Score Distribution")
+
+    st.pyplot(fig1)
+
+    # ==================================================
+    # 🧠 TRANSACTION IMPORTANCE
+    # ==================================================
+    st.subheader("🧠 Transaction Importance (Sequence)")
 
     sample = X_seq[0]
     importance = np.mean(sample, axis=1)
 
-    fig, ax = plt.subplots()
-    ax.bar(range(len(importance)), importance)
-    ax.set_title("Transaction Importance")
-    ax.set_xlabel("Transaction Index")
-    ax.set_ylabel("Score")
+    fig2, ax2 = plt.subplots()
+    ax2.bar(range(len(importance)), importance)
+    ax2.set_title("Transaction Importance")
+    ax2.set_xlabel("Step")
+    ax2.set_ylabel("Score")
 
-    st.pyplot(fig)
+    st.pyplot(fig2)
+
+else:
+    st.info("📌 Please upload the dataset to begin.")
